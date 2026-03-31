@@ -232,6 +232,9 @@ def main():
         log.info(f"Model saved to {MODEL_PATH}")
         log.info(f"MLflow run ID: {mlflow.active_run().info.run_id}")
 
+        # Compute SHAP global importance by default for explainability
+        compute_shap(model, X)
+
 
 if __name__ == "__main__":
     main()

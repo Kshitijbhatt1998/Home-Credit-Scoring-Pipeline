@@ -106,7 +106,7 @@ def clean_application(con: duckdb.DuckDBPyConnection) -> None:
     keep_sql = ", ".join([f'"{c}"' for c in kept_cols])
 
     con.execute(f"""
-        CREATE OR REPLACE TABLE clean_application AS
+        CREATE OR REPLACE TABLE clean_application_train AS
         SELECT
             {keep_sql},
 
@@ -153,8 +153,8 @@ def clean_application(con: duckdb.DuckDBPyConnection) -> None:
 
         FROM raw_application_train
     """)
-    n = con.execute("SELECT COUNT(*) FROM clean_application").fetchone()[0]
-    log.info(f"  clean_application: {n:,} rows")
+    n = con.execute("SELECT COUNT(*) FROM clean_application_train").fetchone()[0]
+    log.info(f"  clean_application_train: {n:,} rows")
 
 
 def clean_passthrough(con: duckdb.DuckDBPyConnection, stem: str) -> None:
