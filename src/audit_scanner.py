@@ -61,15 +61,18 @@ def run_audit():
     else:
         log.info("  Pass: No features exceed the correlation threshold.")
 
-    # 2. ID Predictive Power Check
-    log.info("Checking for ID-based Leakage...")
-    id_corr = abs(numeric_df[ID_COL].corr(numeric_df[TARGET_COL]))
-    if id_corr > 0.05:
-        leakage_found = True
-        log.warning(f"WARNING: ID column '{ID_COL}' has correlation {id_corr:.4f} with target.")
-        log.info("  This may indicate a sequence-based leak or temporal ordering in IDs.")
+    # 2. Check for ID-based Leakage (Numerical IDs shouldn't be predictive)
+    log.info(f"[INFO] Checking for ID-based Leakage...")
+    # If ID is string (hashed), skip numeric correlation
+    if ID_COL in df.columns and pd.api.types.is_numeric_dtype(df[ID_COL]):
+        id_corr = abs(df[ID_COL].corr(df[TARGET_COL]))
+        if id_corr > 0.05:
+            leakage_found = True
+            log.warning(f"[ALARM] ID-based leakage detected! Corr={id_corr:.4f}")
+        else:
+            log.info(f"  Pass: ID column correlation ({id_corr:.4f}) is within safe bounds.")
     else:
-        log.info(f"  Pass: ID column correlation ({id_corr:.4f}) is within safe bounds.")
+        log.info(f"[INFO]   ID is non-numeric (hashed) — skipping correlation check.")
 
     # 3. Null Flag Leakage Check
     log.info("Checking for Null-Imputation Leakage...")
