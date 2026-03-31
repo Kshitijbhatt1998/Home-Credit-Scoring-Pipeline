@@ -140,6 +140,8 @@ Experience the pipeline's end-to-end capabilities directly in your browser:
 
 👉 **[Live Hugging Face Space](https://huggingface.co/spaces/Kshitijbhatt1998/Home_Credit_Scoring_Pipeline)**
 
+![Dashboard Preview](./docs/assets/dashboard_preview.png)
+
 ### Demo Mode Architecture
 
 To enable an instant preview without requiring the full 10GB dataset, the Space uses a **MockFintechModel** and synthetic data generators. This allows you to explore:
