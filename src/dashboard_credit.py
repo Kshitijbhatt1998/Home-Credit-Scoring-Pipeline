@@ -126,6 +126,28 @@ def get_demo_sample():
     })
 
 
+class MockFintechModel:
+    """Simulates a high-performing LightGBM model for fintech demo mode."""
+    def predict_proba(self, X):
+        # Generate probabilities that correlate slightly with the mock 'target' 
+        # to simulate a realistic AUC-ROC (~0.77)
+        n = len(X)
+        probs = np.random.beta(2, 5, n)
+        # Shift probabilities for 'high-risk' rows to simulate model signal
+        high_risk_idx = np.random.choice(n, int(n * 0.08), replace=False)
+        probs[high_risk_idx] = np.random.beta(5, 2, len(high_risk_idx))
+        return np.column_stack([1 - probs, probs])
+
+
+def get_demo_holdout_set():
+    """Generates a mock holdout set for Model Performance analytics."""
+    n = 1000
+    cols = ["age_years", "is_employed", "ext_source_2", "bureau_debt_ratio", "late_payment_rate", "credit_income_ratio", "annuity_income_ratio"]
+    df = pd.DataFrame({c: np.random.randn(n) for c in cols})
+    df["target"] = np.random.choice([0, 1], n, p=[0.92, 0.08])
+    return df
+
+
 # --- Data Loading ------------------------------------------------------------
 @st.cache_data(ttl=300)
 def load_summary():
@@ -158,7 +180,11 @@ def load_sample(n=50_000):
 @st.cache_data(ttl=600)
 def load_model_data():
     if DEMO_MODE:
-        return None
+        artifact = {
+            "model": MockFintechModel(),
+            "feature_cols": ["age_years", "is_employed", "ext_source_2", "bureau_debt_ratio", "late_payment_rate", "credit_income_ratio", "annuity_income_ratio"]
+        }
+        return artifact, get_demo_holdout_set()
     if not MODEL_PATH.exists():
         return None
     with open(MODEL_PATH, "rb") as f:
@@ -321,6 +347,8 @@ elif tab == "Risk Breakdown":
 # --- Tab: Model Performance --------------------------------------------------
 elif tab == "Model Performance":
     st.title("Model Performance")
+    if DEMO_MODE:
+        st.caption("⚡ **Demo Mode**: Performance metrics are simulated for live preview.")
 
     result = load_model_data()
     if result is None:
