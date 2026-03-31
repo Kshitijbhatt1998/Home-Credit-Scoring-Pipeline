@@ -1,6 +1,6 @@
 # Home Credit Scoring Pipeline
 
-**End-to-end credit default prediction pipeline — 307K loan applications, 7 related tables, 70+ engineered features. The data engineering layer that lets your ML team train models instead of building plumbing.**
+**An end-to-end, production-grade data engineering and ML pipeline for credit risk assessment. It processes 7 related tables and 10M+ rows to deliver model-ready datasets for fintech AI teams. Built with a focus on technical integrity, it specifically solves the problem of "Data Leakage" and "Inflated AUC" using strict Point-in-Time (PIT) join logic and PII safeguarding.**
 
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://python.org)
 [![dbt](https://img.shields.io/badge/dbt-1.7-orange)](https://getdbt.com)
@@ -23,7 +23,7 @@ This pipeline ingests 7 related tables from the Home Credit Default Risk dataset
 ## Why This Pipeline Is Different From Fraud Detection
 
 | Dimension | Fraud Pipeline | This Pipeline |
-|-----------|---------------|---------------|
+| :--- | :--- | :--- |
 | Data shape | 2 tables | **7 related tables** |
 | Join complexity | Simple left join | Multi-level aggregation joins |
 | Feature type | Velocity + temporal | Bureau aggregates + payment ratios |
@@ -38,7 +38,7 @@ The CV strategy difference is intentional and documented — fraud detection req
 ## Pipeline Results
 
 | Metric | Value |
-|--------|-------|
+| :--- | :--- |
 | Loan applications | 307,511 |
 | Supporting table rows | ~10M+ (bureau, payments, etc.) |
 | Features engineered | 70+ |
@@ -50,37 +50,12 @@ The CV strategy difference is intentional and documented — fraud detection req
 
 ## Architecture
 
-```
-7 Raw CSVs (Home Credit Kaggle)
-        │
-        ▼
-[1. Ingest]  src/ingest_credit.py
-        DuckDB ← read_csv_auto (7 tables)
-        - Clean application: derived ratios, employment flags, age
-        - Supporting tables: pass-through
-        │
-        ▼
-[2. Transform]  dbt (dbt_project/)
-        staging/
-          stg_application       ← main application table
-          stg_bureau            ← credit bureau history
-          stg_previous_app      ← prior HC loan applications
-          stg_installments      ← payment history
-        marts/
-          credit_bureau_features  ← aggregated bureau signals per applicant
-          credit_payment_features ← payment behaviour + prior loan history
-          credit_features         ← full joined feature table (70+ cols)
-          credit_summary          ← risk by contract type, income, education
-        │
-        ▼
-[3. Train]  src/train_credit.py
-        LightGBM + StratifiedKFold (5-fold)
-        MLflow experiment tracking
-        → models/lgbm_credit_v1.pkl
-        │
-        ▼
-[4. Serve]  src/dashboard_credit.py
-        Streamlit: Overview / Risk Breakdown / Model Performance / Application Explorer
+```mermaid
+graph TD
+    A[7 Raw CSVs] --> B[1. Ingest: src/ingest_credit.py]
+    B --> C[2. Transform: dbt]
+    C --> D[3. Train: src/train_credit.py]
+    D --> E[4. Serve: src/dashboard_credit.py]
 ```
 
 ---
@@ -88,6 +63,7 @@ The CV strategy difference is intentional and documented — fraud detection req
 ## Key Engineered Features
 
 ### Bureau Aggregates (per applicant, across all bureau records)
+
 ```sql
 bureau_debt_ratio          = total_bureau_debt / total_bureau_credit
 overdue_bureau_count       = COUNT(*) WHERE credit_day_overdue > 0
@@ -96,6 +72,7 @@ bureau_debt_to_new_credit  = total_bureau_debt / amt_credit (cross-table)
 ```
 
 ### Payment Behaviour (from installment history)
+
 ```sql
 avg_payment_lag            = AVG(days_instalment - days_entry_payment)
 late_payment_rate          = AVG(paid_after_due)
@@ -104,6 +81,7 @@ overall_payment_completeness = total_paid / total_owed
 ```
 
 ### Application Ratios
+
 ```sql
 credit_income_ratio        = amt_credit / amt_income_total
 annuity_income_ratio       = amt_annuity / amt_income_total
@@ -116,7 +94,7 @@ employment_age_ratio       = abs(days_employed) / abs(days_birth)
 ## Tech Stack
 
 | Layer | Tool |
-|-------|------|
+| :--- | :--- |
 | Storage | DuckDB |
 | Transformation | dbt (staging → marts) |
 | ML | LightGBM, scikit-learn |
@@ -156,6 +134,44 @@ docker-compose up -d --build
 
 ---
 
+## 🚀 Interactive Demo
+
+Experience the pipeline's end-to-end capabilities directly in your browser:
+
+👉 **[Live Hugging Face Space](https://huggingface.co/spaces/Kshitijbhatt1998/Home_Credit_Scoring_Pipeline)**
+
+### Demo Mode Architecture
+
+To enable an instant preview without requiring the full 10GB dataset, the Space uses a **MockFintechModel** and synthetic data generators. This allows you to explore:
+
+- **Feature Distributions**: Real-world ranges for credit-to-income and employment ratios.
+- **Explainability (SHAP)**: Interactive global and local importance plots.
+- **Monitoring Alerts**: Proactive "Data Quality Alerts" designed for fintech scale.
+
+---
+
+## 🔬 Verification: The Anti-Leakage Audit
+
+Unlike generic ML pipelines, this repo enforces strict **Point-in-Time (PIT)** safety. This prevents "Look-ahead bias," where a model accidentally learns from future events that weren't known at the time of application.
+
+### The PIT Safety Valve
+
+All joined features from bureau and payment history are filtered by `DAYS <= 0`. This ensures:
+
+1. **Zero Inflation**: Your AUC-ROC is biologically sound, not artificially inflated by future data.
+2. **Production Ready**: The model trained here behaves identically to how it would in a real-time production inference environment.
+
+You can audit this manually in the database:
+
+```sql
+-- This should return 0 results if PIT enforcement is active
+SELECT COUNT(*) FROM clean_bureau WHERE DAYS_CREDIT > 0;
+```
+
+A result of **0** confirms that the "safety valve" is active and the training set is leak-proof.
+
+---
+
 ## Deployment & Production Readiness
 
 The pipeline is containerized for easy deployment to cloud VMs (EC2, GCP, etc.) or local servers.
@@ -166,6 +182,7 @@ The pipeline is containerized for easy deployment to cloud VMs (EC2, GCP, etc.) 
 | **MLflow Tracking** | `5000` | `localhost:5000` |
 
 ### Running with Docker
+
 1. Ensure `docker` and `docker-compose` are installed.
 2. Run `docker-compose up --build`.
 3. Access the dashboard at `http://localhost:8501`.
@@ -180,6 +197,7 @@ The pipeline is containerized for easy deployment to cloud VMs (EC2, GCP, etc.) 
 ## Dbt Project Management
 
 The transformation layer is managed by dbt.
+
 - **Location**: `dbt_project/`
 - **Profiles**: Ensure `dbt_project/profiles.yml` points to the correct DuckDB path.
 - **Run**: `cd dbt_project && dbt run`
@@ -210,16 +228,22 @@ pytest tests/
 This project includes "Senior-level" features designed for professional fintech AI infrastructure:
 
 ### 1. Unified Explainability (SHAP)
+
 We move beyond native "Gain" importance to **SHAP (SHapley Additive exPlanations)**. This provides model-agnostic, mathematically sound insights into *why* a model reached its decision.
+
 - **Global**: Top 20 features by mean absolute SHAP value.
 - **Local**: On-the-fly "Root Cause Analysis" for individual loan applications in the dashboard.
 
 ### 2. The 48h Audit Hook (Leakage Scanner)
+
 To prevent "inflated AUC" (technical leakage), we've included an automated audit scanner.
+
 ```bash
 python src/audit_scanner.py
 ```
+
 **Features Analyzed:**
+
 - **Target Leakage**: Flags features with `abs(corr) > 0.95`.
 - **ID Corruption**: Checks if `SK_ID_CURR` is accidentally predictive.
 - **Null-State Leakage**: Checks if the *presence* of missing data is perfectly correlated with defaults.
@@ -230,15 +254,18 @@ python src/audit_scanner.py
 
 This pipeline is built with two production-critical safeguards often missed in generic ML projects:
 
-* **Cryptographic PII Hashing**: All primary identifiers (`sk_id_curr`) are hashed using SHA-256 upon ingestion to ensure data privacy in the modeling environment. Meets "Privacy by Design" standards for SOC2.
-* **Strict PIT (Point-in-Time) Enforcement**: To prevent "Look-ahead bias" and inflated AUC, the pipeline uses relative-day filtering (`DAYS <= 0`) to ensure features only use data available at the exact moment of application.
+- **Cryptographic PII Hashing**: All primary identifiers (`sk_id_curr`) are hashed using SHA-256 upon ingestion to ensure data privacy in the modeling environment. Meets "Privacy by Design" standards for SOC2.
+- **Strict PIT (Point-in-Time) Enforcement**: To prevent "Look-ahead bias" and inflated AUC, the pipeline uses relative-day filtering (`DAYS <= 0`) to ensure features only use data available at the exact moment of application.
 
 ### 🔍 How to Audit for Leakage
+
 To verify this pipeline is leak-proof, you can run a "future-date" query in the modeling environment:
+
 ```sql
 -- This should return 0 results if PIT enforcement is active
 SELECT COUNT(*) FROM clean_bureau WHERE DAYS_CREDIT > 0;
 ```
+
 A result of **0** confirms that no future records (which would have been unavailable at the time of the applicant's request) have leaked into the training set.
 
 ---
@@ -254,9 +281,10 @@ Home Credit Default Risk dataset (Kaggle, 2018). Publicly available for research
 Built by **Kshitij Bhatt** — Data Engineer specializing in fintech AI pipeline infrastructure.
 
 This is the second in a series of public proof-of-work case studies:
+
 1. [Fraud Detection Pipeline](https://github.com/Kshitijbhatt1998/fintech-fraud-pipeline) — transaction-level, XGBoost, AUC 0.9791
 2. **Credit Scoring Pipeline** (this repo) — application-level, LightGBM, 7-table join
 
 **Services:** Custom data pipelines · Feature engineering · dbt transformations · Model-ready dataset delivery · Monthly retainer maintenance
 
-→ [GitHub](https://github.com/Kshitijbhatt1998) | [LinkedIn](https://linkedin.com/in/kshitijbhatt)
+👉 [GitHub](https://github.com/Kshitijbhatt1998) | [LinkedIn](https://linkedin.com/in/kshitijbhatt)
