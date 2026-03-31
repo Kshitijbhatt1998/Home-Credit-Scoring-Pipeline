@@ -50,6 +50,24 @@ def load_table(con: duckdb.DuckDBPyConnection, stem: str) -> int:
     log.info(f"  raw_{stem}: {n:,} rows ({time.time()-t0:.1f}s)")
     return n
 
+
+def check_schema(con: duckdb.DuckDBPyConnection, stem: str, mandatory_cols: list) -> None:
+    """
+    Data Contract Validation: Verifies that mandatory columns exist in the raw data.
+    Prevents silent failures due to upstream schema changes.
+    """
+    try:
+        cols = [c[0].lower() for c in con.execute(f"DESCRIBE raw_{stem}").fetchall()]
+        missing = [c for c in mandatory_cols if c.lower() not in cols]
+        if missing:
+            log.error(f"DATA CONTRACT VIOLATION: Table '{stem}' is missing required columns: {missing}")
+            raise ValueError(f"Missing mandatory columns in {stem}: {missing}")
+        log.info(f"  Schema check: Table '{stem}' PASSED (All {len(mandatory_cols)} mandatory columns found)")
+    except Exception as e:
+        log.error(f"Failed to verify schema for {stem}: {e}")
+        raise
+
+
 def drop_high_null_cols(con: duckdb.DuckDBPyConnection, table: str, mandatory: set, threshold: float) -> list[str]:
     cols_df = con.execute(f"DESCRIBE {table}").df()
     all_cols = [c.lower() for c in cols_df["column_name"].tolist()]
@@ -114,7 +132,15 @@ def main() -> None:
     con = duckdb.connect(str(DB_PATH))
     log.info("=== Stage 1: Raw ingestion ===")
     for stem, _ in TABLES: load_table(con, stem)
-    log.info("=== Stage 2: Cleaning ===")
+
+    # 2. Data Contract Validation (Defensive Engineering)
+    log.info("Starting Data Contract Validation...")
+    check_schema(con, "application_train", list(MANDATORY_APPLICATION))
+    check_schema(con, "bureau", ["sk_id_curr", "days_credit"]) # Example requirements
+    check_schema(con, "installments_payments", ["sk_id_curr", "days_instalment"])
+
+    # 3. Cleaning & PIT Filtering
+    log.info("Cleaning and implementing Point-in-Time safeguards...")
     clean_application(con)
     for stem, _ in TABLES[1:]: clean_passthrough(con, stem)
     con.close()
