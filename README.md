@@ -233,6 +233,14 @@ This pipeline is built with two production-critical safeguards often missed in g
 * **Cryptographic PII Hashing**: All primary identifiers (`sk_id_curr`) are hashed using SHA-256 upon ingestion to ensure data privacy in the modeling environment. Meets "Privacy by Design" standards for SOC2.
 * **Strict PIT (Point-in-Time) Enforcement**: To prevent "Look-ahead bias" and inflated AUC, the pipeline uses relative-day filtering (`DAYS <= 0`) to ensure features only use data available at the exact moment of application.
 
+### 🔍 How to Audit for Leakage
+To verify this pipeline is leak-proof, you can run a "future-date" query in the modeling environment:
+```sql
+-- This should return 0 results if PIT enforcement is active
+SELECT COUNT(*) FROM clean_bureau WHERE DAYS_CREDIT > 0;
+```
+A result of **0** confirms that no future records (which would have been unavailable at the time of the applicant's request) have leaked into the training set.
+
 ---
 
 ## Sales & Outreach (M1)
