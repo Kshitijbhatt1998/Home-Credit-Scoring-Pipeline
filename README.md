@@ -243,12 +243,6 @@ A result of **0** confirms that no future records (which would have been unavail
 
 ---
 
-## Sales & Outreach (M1)
-
-The project includes pre-drafted **[Outreach Scripts](file:///d:/Project%20ideas/Home-Credit-Scoring-Pipeline/Home-Credit-Scoring-Pipeline/docs/marketing/outreach_scripts.md)** targeting the specific pain points of fintech founders and CTOs.
-
----
-
 ## Data Source
 
 Home Credit Default Risk dataset (Kaggle, 2018). Publicly available for research.
