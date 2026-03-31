@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 import duckdb
-from src.ingest_credit import ingest_clean_application, drop_high_null_cols, MANDATORY_APPLICATION
+from src.ingest_credit import clean_application, drop_high_null_cols, MANDATORY_APPLICATION
 
 def test_drop_high_null_cols(mock_db):
     """Verify that columns with too many nulls are dropped."""
@@ -39,9 +39,9 @@ def test_clean_application_derived_features(mock_db):
     })
     mock_db.execute("CREATE TABLE raw_application_train AS SELECT * FROM df")
     
-    ingest_clean_application(mock_db)
+    clean_application(mock_db)
     
-    result = mock_db.execute("SELECT * FROM clean_application_train").df()
+    result = mock_db.execute("SELECT * FROM cleaned_app_results").df()
     
     # 1. Ratios
     assert result.loc[0, "credit_income_ratio"] == 2.0

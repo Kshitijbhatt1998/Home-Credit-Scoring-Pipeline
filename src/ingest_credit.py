@@ -82,12 +82,12 @@ def drop_high_null_cols(con: duckdb.DuckDBPyConnection, table: str, mandatory: s
     log.info(f"  Dropped {len(to_drop)} high-null columns, kept {len(kept)}")
     return kept
 
-def ingest_clean_application(con: duckdb.DuckDBPyConnection) -> None:
+def clean_application(con: duckdb.DuckDBPyConnection) -> None:
     kept_cols = drop_high_null_cols(con, "raw_application_train", MANDATORY_APPLICATION, NULL_THRESHOLD)
     keep_sql_no_id = ", ".join([f'"{c}"' for c in kept_cols if c != 'sk_id_curr'])
 
     con.execute(f"""
-        CREATE OR REPLACE TABLE clean_application_train AS
+        CREATE OR REPLACE TABLE cleaned_app_results AS
         SELECT
             -- PII HASHING: Demonstrates "Privacy by Design" for SOC2/Compliance
             upper(hex(sha256(sk_id_curr::VARCHAR)))           AS sk_id_curr,
@@ -104,8 +104,8 @@ def ingest_clean_application(con: duckdb.DuckDBPyConnection) -> None:
         FROM raw_application_train
         WHERE days_birth <= {PIT_RELATIVE_DAY} -- Strict PIT Safety Valve
     """)
-    n = con.execute("SELECT COUNT(*) FROM clean_application_train").fetchone()[0]
-    log.info(f"  clean_application_train: {n:,} rows")
+    n = con.execute("SELECT COUNT(*) FROM cleaned_app_results").fetchone()[0]
+    log.info(f"  cleaned_app_results: {n:,} rows")
 
 def clean_passthrough(con: duckdb.DuckDBPyConnection, stem: str) -> None:
     # Check if sk_id_curr exists in this table to hash it consistently for joins
@@ -146,7 +146,7 @@ def main() -> None:
 
     # 3. Cleaning & PIT Filtering
     log.info("Cleaning and implementing Point-in-Time safeguards...")
-    ingest_clean_application(con)
+    clean_application(con)
     for stem, _ in TABLES[1:]: clean_passthrough(con, stem)
     con.close()
     log.info("Ingestion complete (LOWERCASE).")
