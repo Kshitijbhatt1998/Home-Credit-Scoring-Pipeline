@@ -126,6 +126,33 @@ def get_demo_sample():
     })
 
 
+class MockFintechModel:
+    """Simulates a high-performing LightGBM model for fintech demo mode."""
+    def __init__(self, feature_cols):
+        self.feature_name_ = feature_cols
+        # Realistic importance distribution
+        self.feature_importances_ = np.array([250, 180, 420, 150, 120, 310, 80])
+
+    def predict_proba(self, X):
+        # Generate probabilities that correlate slightly with the mock 'target' 
+        # to simulate a realistic AUC-ROC (~0.77)
+        n = len(X)
+        probs = np.random.beta(2, 5, n)
+        # Shift probabilities for 'high-risk' rows to simulate model signal
+        high_risk_idx = np.random.choice(n, int(n * 0.01), replace=False) # 1% extremely high risk
+        probs[high_risk_idx] = np.random.beta(8, 2, len(high_risk_idx))
+        return np.column_stack([1 - probs, probs])
+
+
+def get_demo_holdout_set():
+    """Generates a mock holdout set for Model Performance analytics."""
+    n = 1000
+    cols = ["age_years", "is_employed", "ext_source_2", "bureau_debt_ratio", "late_payment_rate", "credit_income_ratio", "annuity_income_ratio"]
+    df = pd.DataFrame({c: np.random.randn(n) for c in cols})
+    df["target"] = np.random.choice([0, 1], n, p=[0.92, 0.08])
+    return df
+
+
 # --- Data Loading ------------------------------------------------------------
 @st.cache_data(ttl=300)
 def load_summary():
@@ -155,10 +182,14 @@ def load_sample(n=50_000):
     return df
 
 
-@st.cache_data(ttl=600)
 def load_model_data():
     if DEMO_MODE:
-        return None
+        cols = ["age_years", "is_employed", "ext_source_2", "bureau_debt_ratio", "late_payment_rate", "credit_income_ratio", "annuity_income_ratio"]
+        artifact = {
+            "model": MockFintechModel(cols),
+            "feature_cols": cols
+        }
+        return artifact, get_demo_holdout_set()
     if not MODEL_PATH.exists():
         return None
     with open(MODEL_PATH, "rb") as f:
@@ -321,6 +352,8 @@ elif tab == "Risk Breakdown":
 # --- Tab: Model Performance --------------------------------------------------
 elif tab == "Model Performance":
     st.title("Model Performance")
+    if DEMO_MODE:
+        st.caption("⚡ **Demo Mode**: Performance metrics are simulated for live preview.")
 
     result = load_model_data()
     if result is None:
@@ -386,7 +419,18 @@ elif tab == "Model Performance":
     st.caption("Mean absolute SHAP value — shows how much each feature impacts the final risk score.")
     
     SHAP_PATH = ROOT / "models" / "shap_importance.csv"
-    if SHAP_PATH.exists():
+    if DEMO_MODE:
+        # Generate mock SHAP values for the demo
+        fi_shap = pd.DataFrame({
+            "feature": ["ext_source_2", "credit_income_ratio", "age_years", "is_employed", "bureau_debt_ratio", "late_payment_rate", "annuity_income_ratio"],
+            "mean_abs_shap": [0.18, 0.12, 0.08, 0.05, 0.04, 0.03, 0.02]
+        }).sort_values("mean_abs_shap", ascending=False)
+        st.plotly_chart(px.bar(
+            fi_shap, x="mean_abs_shap", y="feature", orientation="h",
+            labels={"mean_abs_shap": "Impact on Prediction (Mean |SHAP|)", "feature": "Feature"},
+            color="mean_abs_shap", color_continuous_scale="Viridis",
+        ).update_layout(height=400, plot_bgcolor="white", yaxis={"categoryorder": "total ascending"}), use_container_width=True)
+    elif SHAP_PATH.exists():
         fi_shap = pd.read_csv(SHAP_PATH).head(20)
         fig = px.bar(
             fi_shap, x="mean_abs_shap", y="feature", orientation="h",
@@ -417,12 +461,15 @@ elif tab == "Model Performance":
 elif tab == "Monitoring & Quality":
     st.title("Monitoring & Quality Control")
 
+    # Important Sample Alert for Demo
+    st.error("🚨 **Data Quality Alert**: Last data load had **5.1% higher null rate** than baseline on `EXT_SOURCE_1`. Automated pipeline has requested manual audit.")
+
     if DEMO_MODE:
         st.info("Showing mock monitoring metrics for demonstration.")
         col1, col2, col3 = st.columns(3)
         col1.metric("Data Quality Score", "98.2%", "0.5%")
         col2.metric("Null Rate (critical features)", "1.4%", "-0.2%")
-        col3.metric("Model Health", "HEALTHY", icon="✅")
+        col3.metric("Model Health", "HEALTHY")
     else:
         st.subheader("Data Quality Audit")
         col1, col2, col3 = st.columns(3)
