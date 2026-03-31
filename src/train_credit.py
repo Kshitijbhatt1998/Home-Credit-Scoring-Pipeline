@@ -235,3 +235,34 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def compute_shap(model, X: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute mean absolute SHAP values for top feature explainability.
+    Requires: pip install shap
+
+    Returns DataFrame with feature + mean_abs_shap columns.
+    Saved to models/shap_importance.csv and logged to MLflow.
+    """
+    try:
+        import shap
+        log.info("Computing SHAP values (sample of 2,000 rows)...")
+        sample_idx = np.random.choice(len(X), min(2000, len(X)), replace=False)
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X.iloc[sample_idx])
+        # LightGBM binary returns list [class0, class1] — take class 1
+        sv = shap_values[1] if isinstance(shap_values, list) else shap_values
+        df_shap = pd.DataFrame({
+            "feature": X.columns,
+            "mean_abs_shap": np.abs(sv).mean(axis=0),
+        }).sort_values("mean_abs_shap", ascending=False)
+        log.info("\nTop 15 features by mean |SHAP|:")
+        log.info(df_shap.head(15).to_string(index=False))
+        out = MODEL_DIR / "shap_importance.csv"
+        df_shap.to_csv(out, index=False)
+        mlflow.log_artifact(str(out))
+        return df_shap
+    except ImportError:
+        log.warning("shap not installed — skipping. Install with: pip install shap")
+        return pd.DataFrame()

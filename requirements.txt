@@ -1,0 +1,17 @@
+# Core Data Engineering
+duckdb>=0.10.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+lightgbm>=4.0.0
+mlflow>=2.11.0
+shap>=0.44.0
+
+# Analytics & Dashboard
+streamlit>=1.32.0
+plotly>=5.19.0
+
+# DBT Adapter
+dbt-duckdb>=1.7.0
