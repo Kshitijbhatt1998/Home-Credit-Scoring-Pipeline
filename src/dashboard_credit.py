@@ -182,7 +182,6 @@ def load_sample(n=50_000):
     return df
 
 
-@st.cache_data(ttl=600)
 def load_model_data():
     if DEMO_MODE:
         cols = ["age_years", "is_employed", "ext_source_2", "bureau_debt_ratio", "late_payment_rate", "credit_income_ratio", "annuity_income_ratio"]
