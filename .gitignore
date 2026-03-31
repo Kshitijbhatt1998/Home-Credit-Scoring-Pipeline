@@ -1,0 +1,31 @@
+# Data and database
+data/
+*.duckdb
+
+# Models and artifacts
+models/
+*.pkl
+*.csv (if importance/shap)
+
+# MLflow logs
+mlruns/
+
+# Python environment and cache
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+env/
+venv/
+build/
+dist/
+*.egg-info/
+
+# dbt artifacts
+dbt_project/target/
+dbt_project/dbt_modules/
+dbt_project/dbt_packages/
+dbt_project/logs/
+
+# Secrets
+.env
