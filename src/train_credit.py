@@ -236,8 +236,7 @@ def main():
         compute_shap(model, X)
 
 
-if __name__ == "__main__":
-    main()
+
 
 
 def compute_shap(model, X: pd.DataFrame) -> pd.DataFrame:
@@ -269,3 +268,5 @@ def compute_shap(model, X: pd.DataFrame) -> pd.DataFrame:
     except ImportError:
         log.warning("shap not installed — skipping. Install with: pip install shap")
         return pd.DataFrame()
+if __name__ == '__main__':
+    main()
