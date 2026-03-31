@@ -31,7 +31,8 @@ TABLES = [
 # Columns that must be preserved regardless of null rate
 MANDATORY_APPLICATION = {
     "sk_id_curr", "target", "ext_source_1", "ext_source_2", "ext_source_3",
-    "amt_credit", "amt_annuity", "amt_income_total", "days_birth"
+    "amt_credit", "amt_annuity", "amt_income_total", "amt_goods_price",
+    "days_birth", "days_employed", "code_gender", "flag_own_car", "flag_own_realty"
 }
 
 NULL_THRESHOLD = 60.0
@@ -86,21 +87,25 @@ def clean_application(con: duckdb.DuckDBPyConnection) -> None:
     keep_sql_no_id = ", ".join([f'"{c}"' for c in kept_cols if c != 'sk_id_curr'])
 
     con.execute(f"""
-        CREATE OR REPLACE TABLE clean_application_train AS
+        CREATE OR REPLACE TABLE cleaned_app_results AS
         SELECT
             -- PII HASHING: Demonstrates "Privacy by Design" for SOC2/Compliance
             upper(hex(sha256(sk_id_curr::VARCHAR)))           AS sk_id_curr,
             {keep_sql_no_id},
             ABS(days_birth) / 365.25                          AS age_years,
+            amt_credit / NULLIF(amt_income_total, 0)          AS credit_income_ratio,
+            amt_annuity / NULLIF(amt_income_total, 0)         AS annuity_income_ratio,
             amt_goods_price / NULLIF(amt_credit, 0)           AS goods_price_credit_ratio,
+            CASE WHEN days_employed = 365243 THEN 0 ELSE 1 END AS is_employed,
+            CASE WHEN days_employed = 365243 THEN NULL ELSE days_employed END AS days_employed_clean,
             CASE WHEN code_gender = 'M' THEN 1 WHEN code_gender = 'F' THEN 0 ELSE NULL END AS gender_enc,
             CASE WHEN flag_own_car = 'Y' THEN 1 ELSE 0 END    AS owns_car,
             CASE WHEN flag_own_realty = 'Y' THEN 1 ELSE 0 END AS owns_realty
         FROM raw_application_train
         WHERE days_birth <= {PIT_RELATIVE_DAY} -- Strict PIT Safety Valve
     """)
-    n = con.execute("SELECT COUNT(*) FROM clean_application_train").fetchone()[0]
-    log.info(f"  clean_application_train: {n:,} rows")
+    n = con.execute("SELECT COUNT(*) FROM cleaned_app_results").fetchone()[0]
+    log.info(f"  cleaned_app_results: {n:,} rows")
 
 def clean_passthrough(con: duckdb.DuckDBPyConnection, stem: str) -> None:
     # Check if sk_id_curr exists in this table to hash it consistently for joins

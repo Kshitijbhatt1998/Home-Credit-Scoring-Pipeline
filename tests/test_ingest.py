@@ -17,10 +17,10 @@ def test_drop_high_null_cols(mock_db):
         mock_db, "raw_application_train", MANDATORY_APPLICATION, threshold=60.0
     )
     
-    assert "NO_NULL" in kept
-    assert "MOSTLY_NULL" not in kept
+    assert "no_null" in kept
+    assert "mostly_null" not in kept
     # Mandatory columns should always be kept
-    assert "SK_ID_CURR" in kept
+    assert "sk_id_curr" in kept
 
 def test_clean_application_derived_features(mock_db):
     """Verify calculation of derived columns in clean_application."""
@@ -41,7 +41,7 @@ def test_clean_application_derived_features(mock_db):
     
     clean_application(mock_db)
     
-    result = mock_db.execute("SELECT * FROM clean_application").df()
+    result = mock_db.execute("SELECT * FROM cleaned_app_results").df()
     
     # 1. Ratios
     assert result.loc[0, "credit_income_ratio"] == 2.0

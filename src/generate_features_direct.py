@@ -23,7 +23,7 @@ def build_features():
     con.execute("""
         CREATE OR REPLACE TABLE credit_features AS
         WITH apps AS (
-            SELECT * FROM clean_application_train
+            SELECT * FROM cleaned_app_results
         ),
         bureau_agg AS (
             SELECT 
