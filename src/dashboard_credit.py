@@ -419,7 +419,18 @@ elif tab == "Model Performance":
     st.caption("Mean absolute SHAP value — shows how much each feature impacts the final risk score.")
     
     SHAP_PATH = ROOT / "models" / "shap_importance.csv"
-    if SHAP_PATH.exists():
+    if DEMO_MODE:
+        # Generate mock SHAP values for the demo
+        fi_shap = pd.DataFrame({
+            "feature": ["ext_source_2", "credit_income_ratio", "age_years", "is_employed", "bureau_debt_ratio", "late_payment_rate", "annuity_income_ratio"],
+            "mean_abs_shap": [0.18, 0.12, 0.08, 0.05, 0.04, 0.03, 0.02]
+        }).sort_values("mean_abs_shap", ascending=False)
+        st.plotly_chart(px.bar(
+            fi_shap, x="mean_abs_shap", y="feature", orientation="h",
+            labels={"mean_abs_shap": "Impact on Prediction (Mean |SHAP|)", "feature": "Feature"},
+            color="mean_abs_shap", color_continuous_scale="Viridis",
+        ).update_layout(height=400, plot_bgcolor="white", yaxis={"categoryorder": "total ascending"}), use_container_width=True)
+    elif SHAP_PATH.exists():
         fi_shap = pd.read_csv(SHAP_PATH).head(20)
         fig = px.bar(
             fi_shap, x="mean_abs_shap", y="feature", orientation="h",
@@ -449,6 +460,9 @@ elif tab == "Model Performance":
 # --- Tab: Monitoring & Quality -----------------------------------------------
 elif tab == "Monitoring & Quality":
     st.title("Monitoring & Quality Control")
+
+    # Important Sample Alert for Demo
+    st.error("🚨 **Data Quality Alert**: Last data load had **5.1% higher null rate** than baseline on `EXT_SOURCE_1`. Automated pipeline has requested manual audit.")
 
     if DEMO_MODE:
         st.info("Showing mock monitoring metrics for demonstration.")
