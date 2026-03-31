@@ -422,7 +422,7 @@ elif tab == "Monitoring & Quality":
         col1, col2, col3 = st.columns(3)
         col1.metric("Data Quality Score", "98.2%", "0.5%")
         col2.metric("Null Rate (critical features)", "1.4%", "-0.2%")
-        col3.metric("Model Health", "HEALTHY", icon="✅")
+        col3.metric("Model Health", "HEALTHY")
     else:
         st.subheader("Data Quality Audit")
         col1, col2, col3 = st.columns(3)
