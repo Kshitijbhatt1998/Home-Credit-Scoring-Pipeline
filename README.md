@@ -149,7 +149,61 @@ python src/train_credit.py
 
 # 6. Dashboard
 streamlit run src/dashboard_credit.py
+
+# 7. Deployment (Optional - Containerized)
+docker-compose up -d --build
 ```
+
+---
+
+## Deployment & Production Readiness
+
+The pipeline is containerized for easy deployment to cloud VMs (EC2, GCP, etc.) or local servers.
+
+| Component | Port | Host |
+| :--- | :--- | :--- |
+| **Streamlit Dashboard** | `8501` | `localhost:8501` |
+| **MLflow Tracking** | `5000` | `localhost:5000` |
+
+### Running with Docker
+1. Ensure `docker` and `docker-compose` are installed.
+2. Run `docker-compose up --build`.
+3. Access the dashboard at `http://localhost:8501`.
+
+### Data Persistence
+- **DuckDB**: Stored in `data/credit.duckdb`.
+- **ML Models**: Stored in `models/lgbm_credit_v1.pkl`.
+- **MLflow Logs**: Stored in the `mlruns/` local directory.
+
+---
+
+## Dbt Project Management
+
+The transformation layer is managed by dbt.
+- **Location**: `dbt_project/`
+- **Profiles**: Ensure `dbt_project/profiles.yml` points to the correct DuckDB path.
+- **Run**: `cd dbt_project && dbt run`
+- **Test**: `cd dbt_project && dbt test`
+
+---
+
+## Automated Testing
+
+This project uses `pytest` for unit and integration testing.
+
+```bash
+# 1. Install testing dependencies
+pip install pytest pytest-mock
+
+# 2. Run all tests
+pytest tests/
+```
+
+- **`tests/test_ingest.py`**: Validates data cleaning logic/ratios.
+- **`tests/test_train.py`**: Validates categorical encoding/feature matrix.
+- **`tests/conftest.py`**: Shared fixtures (in-memory DuckDB).
+
+
 
 ---
 

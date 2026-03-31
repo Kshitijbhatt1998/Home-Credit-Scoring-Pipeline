@@ -1,0 +1,11 @@
+# dbt profiles configuration for DuckDB
+home_credit:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: '../data/credit.duckdb'
+      # Additional settings for DuckDB (optional)
+      # extensions: ['httpfs', 'parquet']
+      # settings:
+      #   threads: 4

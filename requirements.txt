@@ -13,5 +13,6 @@ shap>=0.44.0
 streamlit>=1.32.0
 plotly>=5.19.0
 
-# DBT Adapter
-dbt-duckdb>=1.7.0
+# Testing
+pytest>=7.4.0
+pytest-mock>=3.11.0
