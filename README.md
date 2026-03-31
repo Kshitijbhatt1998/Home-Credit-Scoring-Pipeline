@@ -203,7 +203,26 @@ pytest tests/
 - **`tests/test_train.py`**: Validates categorical encoding/feature matrix.
 - **`tests/conftest.py`**: Shared fixtures (in-memory DuckDB).
 
+---
 
+## Technical Audit & Explainability
+
+This project includes "Senior-level" features designed for professional fintech AI infrastructure:
+
+### 1. Unified Explainability (SHAP)
+We move beyond native "Gain" importance to **SHAP (SHapley Additive exPlanations)**. This provides model-agnostic, mathematically sound insights into *why* a model reached its decision.
+- **Global**: Top 20 features by mean absolute SHAP value.
+- **Local**: On-the-fly "Root Cause Analysis" for individual loan applications in the dashboard.
+
+### 2. The 48h Audit Hook (Leakage Scanner)
+To prevent "inflated AUC" (technical leakage), we've included an automated audit scanner.
+```bash
+python src/audit_scanner.py
+```
+**Features Analyzed:**
+- **Target Leakage**: Flags features with `abs(corr) > 0.95`.
+- **ID Corruption**: Checks if `SK_ID_CURR` is accidentally predictive.
+- **Null-State Leakage**: Checks if the *presence* of missing data is perfectly correlated with defaults.
 
 ---
 
