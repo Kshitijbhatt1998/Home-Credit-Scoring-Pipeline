@@ -35,6 +35,7 @@ MANDATORY_APPLICATION = {
 }
 
 NULL_THRESHOLD = 60.0
+PIT_RELATIVE_DAY = 0  # Ensures no 'future' data relative to application is used.
 
 def load_table(con: duckdb.DuckDBPyConnection, stem: str) -> int:
     path = RAW_PATH / f"{stem}.csv"
@@ -78,6 +79,7 @@ def clean_application(con: duckdb.DuckDBPyConnection) -> None:
             CASE WHEN flag_own_car = 'Y' THEN 1 ELSE 0 END    AS owns_car,
             CASE WHEN flag_own_realty = 'Y' THEN 1 ELSE 0 END AS owns_realty
         FROM raw_application_train
+        WHERE days_birth <= {PIT_RELATIVE_DAY} -- Strict PIT Safety Valve
     """)
     n = con.execute("SELECT COUNT(*) FROM clean_application_train").fetchone()[0]
     log.info(f"  clean_application_train: {n:,} rows")
@@ -96,11 +98,11 @@ def clean_passthrough(con: duckdb.DuckDBPyConnection, stem: str) -> None:
     sql = f"CREATE OR REPLACE TABLE clean_{stem} AS SELECT {', '.join(select_cols)} FROM raw_{stem}"
     
     # Apply PIT Filter logic (Senior-level safeguard)
-    # If the table has a time-relative column, filter for DAYS <= 0
+    # If the table has a time-relative column, filter for DAYS <= PIT_RELATIVE_DAY
     time_cols = [c for c in cols if c.startswith('days_')]
     if time_cols:
-        # For simplicity, we ensure all historical records are relative to the application (0)
-        sql += f" WHERE {' AND '.join([f'{tc} <= 0' for tc in time_cols])}"
+        # Strict PIT: Only records that existed BEFORE/AT application
+        sql += f" WHERE {' AND '.join([f'{tc} <= {PIT_RELATIVE_DAY}' for tc in time_cols])}"
         
     con.execute(sql)
     n = con.execute(f"SELECT COUNT(*) FROM clean_{stem}").fetchone()[0]

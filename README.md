@@ -226,20 +226,17 @@ python src/audit_scanner.py
 
 ---
 
-## Fintech-Specific Safeguards
+## 🛡️ Fintech Safety & Compliance
 
-This pipeline implements "Elite" infrastructure standards required for SOC2/Compliance and high-precision lending:
+This pipeline is built with two production-critical safeguards often missed in generic ML projects:
 
-### 1. Privacy by Design (PII Hashing)
-All sensitive identifiers (`sk_id_curr`, `sk_id_bureau`, etc.) are **hashed using SHA-256** at the ingestion layer. 
-- **The Benefit**: Data scientists can build and tune models without ever seeing raw customer IDs, meeting strict privacy requirements from day one.
+* **Cryptographic PII Hashing**: All primary identifiers (`sk_id_curr`) are hashed using SHA-256 upon ingestion to ensure data privacy in the modeling environment. Meets "Privacy by Design" standards for SOC2.
+* **Strict PIT (Point-in-Time) Enforcement**: To prevent "Look-ahead bias" and inflated AUC, the pipeline uses relative-day filtering (`DAYS <= 0`) to ensure features only use data available at the exact moment of application.
 
-### 2. Point-in-Time (PIT) Accuracy
-To prevent **AUC Inflation**, the transformation layer enforces strict temporal filtering:
-- **Look-ahead Prevention**: All relational joins (bureau, payments) are filtered using `DAYS_xxx <= 0` logic. This ensures the model only "sees" data that would have been available *at the exact moment* of the loan application.
-- **The Benefit**: Eliminates the #1 cause of model failure in production—accidental data leakage from the future.
+---
 
-### 3. Sales & Outreach (M1)
+## Sales & Outreach (M1)
+
 The project includes pre-drafted **[Outreach Scripts](file:///d:/Project%20ideas/Home-Credit-Scoring-Pipeline/Home-Credit-Scoring-Pipeline/docs/marketing/outreach_scripts.md)** targeting the specific pain points of fintech founders and CTOs.
 
 ---
