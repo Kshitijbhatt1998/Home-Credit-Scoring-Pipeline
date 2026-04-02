@@ -145,6 +145,10 @@ Experience the pipeline's end-to-end capabilities directly in your browser:
 
 👉 **[Live Hugging Face Space](https://huggingface.co/spaces/Kshitijbhatt1998/Home_Credit_Scoring_Pipeline)**
 
+**Credentials for Demo Access:**
+- **Email:** `admin123@gmail.com`
+- **Password:** `Admin@1234`
+
 ![Dashboard Preview](./docs/assets/dashboard_preview.png)
 
 ### Demo Mode Architecture
