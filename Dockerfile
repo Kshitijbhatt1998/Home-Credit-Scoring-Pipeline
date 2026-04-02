@@ -1,5 +1,5 @@
 # Use Python 3.10 as the base (matches README)
-FROM python:3.10-slim
+FROM python:3.14-slim
 
 # Install system dependencies (build-essential for some Python packages)
 RUN apt-get update && apt-get install -y \
