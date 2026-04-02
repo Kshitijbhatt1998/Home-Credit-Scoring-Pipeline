@@ -333,86 +333,56 @@ def main():
             label_visibility="collapsed",
         )
     
-    try:
-        summary, sample = load_and_prep_data()
+    summary, sample = load_and_prep_data()
 
 
-        # Pre-extract sub-dataframes
-        contract_df   = summary[summary["grain"] == "contract_type"]
-        income_df     = summary[summary["grain"] == "income_type"]
-        education_df  = summary[summary["grain"] == "education_type"]
-        region_df     = summary[summary["grain"] == "region_rating"].copy()
-        region_df["dim_value"] = region_df["dim_value"].astype(str)
-        employment_df = summary[summary["grain"] == "employment_status"]
-        
-        total_apps    = int(summary[summary["grain"] == "contract_type"]["application_count"].sum())
-        total_default = int(summary[summary["grain"] == "contract_type"]["default_count"].sum())
-        default_rate  = total_default / total_apps if total_apps else 0
-        avg_credit    = summary[summary["grain"] == "contract_type"]["avg_credit_amount"].mean()
+    # Pre-extract sub-dataframes
+    contract_df   = summary[summary["grain"] == "contract_type"]
+    income_df     = summary[summary["grain"] == "income_type"]
+    education_df  = summary[summary["grain"] == "education_type"]
+    region_df     = summary[summary["grain"] == "region_rating"].copy()
+    region_df["dim_value"] = region_df["dim_value"].astype(str)
+    employment_df = summary[summary["grain"] == "employment_status"]
+    
+    total_apps    = int(summary[summary["grain"] == "contract_type"]["application_count"].sum())
+    total_default = int(summary[summary["grain"] == "contract_type"]["default_count"].sum())
+    default_rate  = total_default / total_apps if total_apps else 0
+    avg_credit    = summary[summary["grain"] == "contract_type"]["avg_credit_amount"].mean()
 
-        # --- Tab: Overview -----------------------------------------------------------
-        if tab == "Overview":
-            logger.info("Navigated to Overview tab")
-            st.title("Credit Scoring — Overview")
+    # --- Tab: Overview -----------------------------------------------------------
+    if tab == "Overview":
+        logger.info("Navigated to Overview tab")
+        st.title("Credit Scoring — Overview")
 
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Total Applications", f"{total_apps:,}")
-            col2.metric("Default Rate", f"{default_rate:.2%}")
-            col3.metric("Total Defaults", f"{total_default:,}")
-            col4.metric("Avg Credit Amount", f"${avg_credit:,.0f}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Applications", f"{total_apps:,}")
+        col2.metric("Default Rate", f"{default_rate:.2%}")
+        col3.metric("Total Defaults", f"{total_default:,}")
+        col4.metric("Avg Credit Amount", f"${avg_credit:,.0f}")
 
-            st.divider()
+        st.divider()
 
-            col1, col2 = st.columns(2)
+        col1, col2 = st.columns(2)
 
-            with col1:
-                fig = px.bar(
-                    contract_df,
-                    x="dim_value", y="application_count",
-                    title="Applications by Contract Type",
-                    labels={"dim_value": "Contract Type", "application_count": "Applications"},
-                    color="default_rate_pct", color_continuous_scale="Reds",
-                    text="application_count",
-                )
-                fig.update_traces(texttemplate="%{text:,}", textposition="outside")
-                fig.update_layout(height=350, plot_bgcolor="white", showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
-
-            with col2:
-                fig = px.bar(
-                    contract_df,
-                    x="dim_value", y="default_rate_pct",
-                    title="Default Rate by Contract Type",
-                    labels={"dim_value": "Contract Type", "default_rate_pct": "Default Rate (%)"},
-                    color="default_rate_pct", color_continuous_scale="Reds",
-                    text="default_rate_pct",
-                )
-                fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
-                fig.update_layout(height=350, plot_bgcolor="white", showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
-
-            # Credit income ratio distribution
-            fig = px.histogram(
-                sample, x="credit_income_ratio",
-                nbins=50,
-                title="Distribution: Credit-to-Income Ratio",
-                labels={"credit_income_ratio": "Credit / Income"},
-                color_discrete_sequence=["#4C72B0"],
+        with col1:
+            fig = px.bar(
+                contract_df,
+                x="dim_value", y="application_count",
+                title="Applications by Contract Type",
+                labels={"dim_value": "Contract Type", "application_count": "Applications"},
+                color="default_rate_pct", color_continuous_scale="Reds",
+                text="application_count",
             )
-            fig.update_layout(height=300, plot_bgcolor="white")
+            fig.update_traces(texttemplate="%{text:,}", textposition="outside")
+            fig.update_layout(height=350, plot_bgcolor="white", showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
 
-
-# --- Tab: Risk Breakdown -----------------------------------------------------
-        elif tab == "Risk Breakdown":
-            st.title("Risk Breakdown")
-
-            # Income type
+        with col2:
             fig = px.bar(
-                income_df.sort_values("default_rate_pct", ascending=False),
+                contract_df,
                 x="dim_value", y="default_rate_pct",
-                title="Default Rate by Income Type",
-                labels={"dim_value": "Income Type", "default_rate_pct": "Default Rate (%)"},
+                title="Default Rate by Contract Type",
+                labels={"dim_value": "Contract Type", "default_rate_pct": "Default Rate (%)"},
                 color="default_rate_pct", color_continuous_scale="Reds",
                 text="default_rate_pct",
             )
@@ -420,273 +390,296 @@ def main():
             fig.update_layout(height=350, plot_bgcolor="white", showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
 
-            col1, col2 = st.columns(2)
+        # Credit income ratio distribution
+        fig = px.histogram(
+            sample, x="credit_income_ratio",
+            nbins=50,
+            title="Distribution: Credit-to-Income Ratio",
+            labels={"credit_income_ratio": "Credit / Income"},
+            color_discrete_sequence=["#4C72B0"],
+        )
+        fig.update_layout(height=300, plot_bgcolor="white")
+        st.plotly_chart(fig, use_container_width=True)
 
-            with col1:
-                fig = px.bar(
-                    education_df.sort_values("default_rate_pct", ascending=False),
-                    x="dim_value", y="default_rate_pct",
-                    title="Default Rate by Education Level",
-                    labels={"dim_value": "Education", "default_rate_pct": "Default Rate (%)"},
-                    color="default_rate_pct", color_continuous_scale="Oranges",
-                    text="default_rate_pct",
-                )
-                fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
-                fig.update_layout(height=400, plot_bgcolor="white", showlegend=False,
-                                  xaxis_tickangle=-20)
-                st.plotly_chart(fig, use_container_width=True)
 
-            with col2:
-                fig = px.bar(
-                    region_df.sort_values("dim_value"),
-                    x="dim_value", y="default_rate_pct",
-                    title="Default Rate by Region Rating (1=Best, 3=Worst)",
-                    labels={"dim_value": "Region Rating", "default_rate_pct": "Default Rate (%)"},
-                    color="default_rate_pct", color_continuous_scale="YlOrRd",
-                    text="default_rate_pct",
-                )
-                fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
-                fig.update_layout(height=400, plot_bgcolor="white", showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
+# --- Tab: Risk Breakdown -----------------------------------------------------
+    elif tab == "Risk Breakdown":
+        st.title("Risk Breakdown")
 
-            # Employment vs default
+        # Income type
+        fig = px.bar(
+            income_df.sort_values("default_rate_pct", ascending=False),
+            x="dim_value", y="default_rate_pct",
+            title="Default Rate by Income Type",
+            labels={"dim_value": "Income Type", "default_rate_pct": "Default Rate (%)"},
+            color="default_rate_pct", color_continuous_scale="Reds",
+            text="default_rate_pct",
+        )
+        fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
+        fig.update_layout(height=350, plot_bgcolor="white", showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
             fig = px.bar(
-                employment_df,
+                education_df.sort_values("default_rate_pct", ascending=False),
                 x="dim_value", y="default_rate_pct",
-                title="Default Rate by Employment Status",
-                labels={"dim_value": "Employment Status", "default_rate_pct": "Default Rate (%)"},
-                color="default_rate_pct", color_continuous_scale="Blues",
+                title="Default Rate by Education Level",
+                labels={"dim_value": "Education", "default_rate_pct": "Default Rate (%)"},
+                color="default_rate_pct", color_continuous_scale="Oranges",
                 text="default_rate_pct",
             )
             fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
-            fig.update_layout(height=300, plot_bgcolor="white", showlegend=False)
+            fig.update_layout(height=400, plot_bgcolor="white", showlegend=False,
+                              xaxis_tickangle=-20)
             st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            fig = px.bar(
+                region_df.sort_values("dim_value"),
+                x="dim_value", y="default_rate_pct",
+                title="Default Rate by Region Rating (1=Best, 3=Worst)",
+                labels={"dim_value": "Region Rating", "default_rate_pct": "Default Rate (%)"},
+                color="default_rate_pct", color_continuous_scale="YlOrRd",
+                text="default_rate_pct",
+            )
+            fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
+            fig.update_layout(height=400, plot_bgcolor="white", showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Employment vs default
+        fig = px.bar(
+            employment_df,
+            x="dim_value", y="default_rate_pct",
+            title="Default Rate by Employment Status",
+            labels={"dim_value": "Employment Status", "default_rate_pct": "Default Rate (%)"},
+            color="default_rate_pct", color_continuous_scale="Blues",
+            text="default_rate_pct",
+        )
+        fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
+        fig.update_layout(height=300, plot_bgcolor="white", showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
 
 
 # --- Tab: Model Performance --------------------------------------------------
-        elif tab == "Model Performance":
-            st.title("Model Performance")
-            if DEMO_MODE:
-                st.caption("⚡ **Demo Mode**: Performance metrics are simulated for live preview.")
+    elif tab == "Model Performance":
+        st.title("Model Performance")
+        if DEMO_MODE:
+            st.caption("⚡ **Demo Mode**: Performance metrics are simulated for live preview.")
 
-            result = load_model_data()
-            if result is None:
-                st.warning("Model not trained yet. Run `python src/train_credit.py` first.")
-                st.stop()
+        result = load_model_data()
+        if result is None:
+            st.warning("Model not trained yet. Run `python src/train_credit.py` first.")
+            st.stop()
 
-            artifact, df = result
-            model     = artifact["model"]
-            feat_cols = [c for c in artifact["feature_cols"] if c in df.columns]
+        artifact, df = result
+        model     = artifact["model"]
+        feat_cols = [c for c in artifact["feature_cols"] if c in df.columns]
 
-            from sklearn.model_selection import train_test_split
-            _, X_hold, _, y_hold = train_test_split(
-                df[feat_cols], df["target"], test_size=0.2, random_state=42, stratify=df["target"]
+        from sklearn.model_selection import train_test_split
+        _, X_hold, _, y_hold = train_test_split(
+            df[feat_cols], df["target"], test_size=0.2, random_state=42, stratify=df["target"]
+        )
+        proba = model.predict_proba(X_hold)[:, 1]
+        preds = (proba >= 0.5).astype(int)
+
+        fpr, tpr, _ = roc_curve(y_hold, proba)
+        roc_auc_val = auc(fpr, tpr)
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Holdout AUC-ROC", f"{roc_auc_val:.4f}")
+        col2.metric("Default Rate (holdout)", f"{y_hold.mean():.2%}")
+        col3.metric("Holdout samples", f"{len(y_hold):,}")
+        
+        st.info("**Data Leakage Check: PASSED**  \n*Verified: No features use records where DAYS_RELATIVE > 0 (Strict PIT enforcement).*")
+
+        st.divider()
+
+        left, right = st.columns(2)
+
+        with left:
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=fpr, y=tpr, mode="lines",
+                name=f"LightGBM (AUC={roc_auc_val:.3f})",
+                line=dict(color="#DD8452", width=2),
+            ))
+            fig.add_trace(go.Scatter(
+                x=[0, 1], y=[0, 1], mode="lines",
+                name="Random", line=dict(color="gray", dash="dash"),
+            ))
+            fig.update_layout(
+                title="ROC Curve", xaxis_title="FPR", yaxis_title="TPR",
+                height=400, plot_bgcolor="white",
             )
-            proba = model.predict_proba(X_hold)[:, 1]
-            preds = (proba >= 0.5).astype(int)
+            st.plotly_chart(fig, use_container_width=True)
 
-            fpr, tpr, _ = roc_curve(y_hold, proba)
-            roc_auc_val = auc(fpr, tpr)
+        with right:
+            cm = confusion_matrix(y_hold, preds)
+            fig = px.imshow(
+                cm, text_auto=True,
+                labels=dict(x="Predicted", y="Actual", color="Count"),
+                x=["Repaid", "Default"], y=["Repaid", "Default"],
+                color_continuous_scale="Blues",
+                title="Confusion Matrix (threshold=0.5)",
+            )
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
 
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Holdout AUC-ROC", f"{roc_auc_val:.4f}")
-            col2.metric("Default Rate (holdout)", f"{y_hold.mean():.2%}")
-            col3.metric("Holdout samples", f"{len(y_hold):,}")
-            
-            st.info("**Data Leakage Check: PASSED**  \n*Verified: No features use records where DAYS_RELATIVE > 0 (Strict PIT enforcement).*")
+        # SHAP Global Importance (Senior-level explainability)
+        st.subheader("Global Explainability (SHAP)")
+        st.caption("Mean absolute SHAP value — shows how much each feature impacts the final risk score.")
+        
+        SHAP_PATH = ROOT / "models" / "shap_importance.csv"
+        if DEMO_MODE:
+            # Generate mock SHAP values for the demo
+            fi_shap = pd.DataFrame({
+                "feature": ["ext_source_2", "credit_income_ratio", "age_years", "is_employed", "bureau_debt_ratio", "late_payment_rate", "annuity_income_ratio"],
+                "mean_abs_shap": [0.18, 0.12, 0.08, 0.05, 0.04, 0.03, 0.02]
+            }).sort_values("mean_abs_shap", ascending=False)
+            st.plotly_chart(px.bar(
+                fi_shap, x="mean_abs_shap", y="feature", orientation="h",
+                labels={"mean_abs_shap": "Impact on Prediction (Mean |SHAP|)", "feature": "Feature"},
+                color="mean_abs_shap", color_continuous_scale="Viridis",
+            ).update_layout(height=400, plot_bgcolor="white", yaxis={"categoryorder": "total ascending"}), use_container_width=True)
+        elif SHAP_PATH.exists():
+            fi_shap = pd.read_csv(SHAP_PATH).head(20)
+            fig = px.bar(
+                fi_shap, x="mean_abs_shap", y="feature", orientation="h",
+                labels={"mean_abs_shap": "Impact on Prediction (Mean |SHAP|)", "feature": "Feature"},
+                color="mean_abs_shap", color_continuous_scale="Viridis",
+            )
+            fig.update_layout(height=550, plot_bgcolor="white", yaxis={"categoryorder": "total ascending"})
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Global SHAP importance not computed yet. Run training to generate.")
 
-            st.divider()
+        # Feature importance (Native LightGBM)
+        with st.expander("View LightGBM Native Gain Importance"):
+            fi = pd.DataFrame({
+                "feature": feat_cols,
+                "importance": model.feature_importances_,
+            }).sort_values("importance", ascending=False).head(20)
 
-            left, right = st.columns(2)
-
-            with left:
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=fpr, y=tpr, mode="lines",
-                    name=f"LightGBM (AUC={roc_auc_val:.3f})",
-                    line=dict(color="#DD8452", width=2),
-                ))
-                fig.add_trace(go.Scatter(
-                    x=[0, 1], y=[0, 1], mode="lines",
-                    name="Random", line=dict(color="gray", dash="dash"),
-                ))
-                fig.update_layout(
-                    title="ROC Curve", xaxis_title="FPR", yaxis_title="TPR",
-                    height=400, plot_bgcolor="white",
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            with right:
-                cm = confusion_matrix(y_hold, preds)
-                fig = px.imshow(
-                    cm, text_auto=True,
-                    labels=dict(x="Predicted", y="Actual", color="Count"),
-                    x=["Repaid", "Default"], y=["Repaid", "Default"],
-                    color_continuous_scale="Blues",
-                    title="Confusion Matrix (threshold=0.5)",
-                )
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
-
-            # SHAP Global Importance (Senior-level explainability)
-            st.subheader("Global Explainability (SHAP)")
-            st.caption("Mean absolute SHAP value — shows how much each feature impacts the final risk score.")
-            
-            SHAP_PATH = ROOT / "models" / "shap_importance.csv"
-            if DEMO_MODE:
-                # Generate mock SHAP values for the demo
-                fi_shap = pd.DataFrame({
-                    "feature": ["ext_source_2", "credit_income_ratio", "age_years", "is_employed", "bureau_debt_ratio", "late_payment_rate", "annuity_income_ratio"],
-                    "mean_abs_shap": [0.18, 0.12, 0.08, 0.05, 0.04, 0.03, 0.02]
-                }).sort_values("mean_abs_shap", ascending=False)
-                st.plotly_chart(px.bar(
-                    fi_shap, x="mean_abs_shap", y="feature", orientation="h",
-                    labels={"mean_abs_shap": "Impact on Prediction (Mean |SHAP|)", "feature": "Feature"},
-                    color="mean_abs_shap", color_continuous_scale="Viridis",
-                ).update_layout(height=400, plot_bgcolor="white", yaxis={"categoryorder": "total ascending"}), use_container_width=True)
-            elif SHAP_PATH.exists():
-                fi_shap = pd.read_csv(SHAP_PATH).head(20)
-                fig = px.bar(
-                    fi_shap, x="mean_abs_shap", y="feature", orientation="h",
-                    labels={"mean_abs_shap": "Impact on Prediction (Mean |SHAP|)", "feature": "Feature"},
-                    color="mean_abs_shap", color_continuous_scale="Viridis",
-                )
-                fig.update_layout(height=550, plot_bgcolor="white", yaxis={"categoryorder": "total ascending"})
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Global SHAP importance not computed yet. Run training to generate.")
-
-            # Feature importance (Native LightGBM)
-            with st.expander("View LightGBM Native Gain Importance"):
-                fi = pd.DataFrame({
-                    "feature": feat_cols,
-                    "importance": model.feature_importances_,
-                }).sort_values("importance", ascending=False).head(20)
-
-                fig = px.bar(
-                    fi, x="importance", y="feature", orientation="h",
-                    color="importance", color_continuous_scale="Blues",
-                )
-                fig.update_layout(height=400, plot_bgcolor="white", yaxis={"categoryorder": "total ascending"})
-                st.plotly_chart(fig, use_container_width=True)
+            fig = px.bar(
+                fi, x="importance", y="feature", orientation="h",
+                color="importance", color_continuous_scale="Blues",
+            )
+            fig.update_layout(height=400, plot_bgcolor="white", yaxis={"categoryorder": "total ascending"})
+            st.plotly_chart(fig, use_container_width=True)
 
 
 # --- Tab: Monitoring & Quality -----------------------------------------------
-        elif tab == "Monitoring & Quality":
-            st.title("Monitoring & Quality Control")
+    elif tab == "Monitoring & Quality":
+        st.title("Monitoring & Quality Control")
 
-            # Important Sample Alert for Demo
-            st.error("🚨 **Data Quality Alert**: Last data load had **5.1% higher null rate** than baseline on `EXT_SOURCE_1`. Automated pipeline has requested manual audit.")
+        # Important Sample Alert for Demo
+        st.error("🚨 **Data Quality Alert**: Last data load had **5.1% higher null rate** than baseline on `EXT_SOURCE_1`. Automated pipeline has requested manual audit.")
 
-            if DEMO_MODE:
-                st.info("Showing mock monitoring metrics for demonstration.")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Data Quality Score", "98.2%", "0.5%")
-                col2.metric("Null Rate (critical features)", "1.4%", "-0.2%")
-                col3.metric("Model Health", "HEALTHY")
-            else:
-                st.subheader("Data Quality Audit")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Quality Check Pass Rate", "100%", "9/9 tests")
-                col2.metric("Max Null Rate (EXT_SOURCE_2)", "0.2%")
-                col3.metric("Schema Drift", "None Detected")
-
-            st.divider()
-
-            st.subheader("Model Drift & Performance Alerts")
-            st.caption("Training vs Serving metrics")
-
-            monitoring_df = pd.DataFrame({
-                "Metric": ["AUC-ROC", "Accuracy", "Precision", "Recall"],
-                "Training (v1)": [0.7742, 0.921, 0.450, 0.120],
-                "Serving (current)": [0.7698, 0.919, 0.442, 0.118],
-            })
-
-            st.table(monitoring_df)
-
-            st.error("Alert (Sample): Last data load had 5% higher null rate than baseline.")
-
-
-        # --- Tab: Application Explorer -----------------------------------------------
-        elif tab == "Application Explorer":
-            logger.info("Navigated to Application Explorer")
-            st.title("Application Explorer")
-            st.caption("Showing up to 50,000 applications")
-        
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                contract_filter = st.multiselect(
-                    "Contract Type",
-                    options=sorted(sample["name_contract_type"].dropna().unique()),
-                )
-            with col2:
-                income_filter = st.multiselect(
-                    "Income Type",
-                    options=sorted(sample["name_income_type"].dropna().unique()),
-                )
-            with col3:
-                default_filter = st.selectbox("Show", ["All", "Defaults only", "Repaid only"])
-        
-            filtered = sample.copy()
-            if contract_filter:
-                filtered = filtered[filtered["name_contract_type"].isin(contract_filter)]
-            if income_filter:
-                filtered = filtered[filtered["name_income_type"].isin(income_filter)]
-            if default_filter == "Defaults only":
-                filtered = filtered[filtered["target"] == 1]
-            elif default_filter == "Repaid only":
-                filtered = filtered[filtered["target"] == 0]
-        
-            st.write(f"{len(filtered):,} applications match filters")
-        
-            display_cols = [
-                "sk_id_curr", "name_contract_type", "amt_credit", "amt_income_total",
-                "credit_income_ratio", "name_income_type", "name_education_type",
-                "age_years", "is_employed", "ext_source_2", "bureau_debt_ratio",
-                "late_payment_rate", "target",
-            ]
-            available_cols = [c for c in display_cols if c in filtered.columns]
-        
-            st.dataframe(
-                filtered[available_cols].rename(columns={"target": "DEFAULT"}).head(1000),
-                use_container_width=True,
-                column_config={
-                    "DEFAULT": st.column_config.NumberColumn(format="%d", help="1=Default, 0=Repaid"),
-                    "amt_credit": st.column_config.NumberColumn(format="$%.0f"),
-                    "amt_income_total": st.column_config.NumberColumn(format="$%.0f"),
-                    "credit_income_ratio": st.column_config.NumberColumn(format="%.3f"),
-                    "ext_source_2": st.column_config.NumberColumn(format="%.4f"),
-                },
-            )
-        
-            st.divider()
-            st.subheader("Individual Explainability")
-            st.caption("Select an application above to see why the model reached its decision.")
-            
-            selected_id = st.selectbox("Select Application ID to Explain", options=filtered["sk_id_curr"].head(100))
-            
-            if selected_id:
-                # Sanitize input: ensure it is a valid integer mapped to an existing application
-                logger.info(f"Viewing individual explainability for ID: {selected_id}")
-                st.info(f"Root Cause Analysis for Application #{selected_id}")
-                
-                # Simulate local SHAP values
-                cols = ["ext_source_2", "bureau_debt_ratio", "late_payment_rate", "age_years", "is_employed"]
-                impact = [0.15, -0.08, 0.22, -0.04, 0.05]
-                local_fi = pd.DataFrame({"Feature": cols, "Impact": impact}).sort_values("Impact")
-                
-                fig = px.bar(
-                    local_fi, x="Impact", y="Feature", orientation="h",
-                    color="Impact", color_continuous_scale="RdBu_r",
-                    title="Local Feature Impact (Positive = Increases Risk, Negative = Decreases Risk)"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-    except Exception as e:
-        logger.error(f"Unhandled Streamlit Application Exception: {str(e)}", exc_info=True)
-        st.error("⚠️ An unexpected error occurred while processing your request. Our engineering team has been notified.")
         if DEMO_MODE:
-            st.exception(e) # Show traceback in demo mode for debugging
+            st.info("Showing mock monitoring metrics for demonstration.")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Data Quality Score", "98.2%", "0.5%")
+            col2.metric("Null Rate (critical features)", "1.4%", "-0.2%")
+            col3.metric("Model Health", "HEALTHY")
+        else:
+            st.subheader("Data Quality Audit")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Quality Check Pass Rate", "100%", "9/9 tests")
+            col2.metric("Max Null Rate (EXT_SOURCE_2)", "0.2%")
+            col3.metric("Schema Drift", "None Detected")
+
+        st.divider()
+
+        st.subheader("Model Drift & Performance Alerts")
+        st.caption("Training vs Serving metrics")
+
+        monitoring_df = pd.DataFrame({
+            "Metric": ["AUC-ROC", "Accuracy", "Precision", "Recall"],
+            "Training (v1)": [0.7742, 0.921, 0.450, 0.120],
+            "Serving (current)": [0.7698, 0.919, 0.442, 0.118],
+        })
+
+        st.table(monitoring_df)
+
+        st.error("Alert (Sample): Last data load had 5% higher null rate than baseline.")
+
+
+    # --- Tab: Application Explorer -----------------------------------------------
+    elif tab == "Application Explorer":
+        logger.info("Navigated to Application Explorer")
+        st.title("Application Explorer")
+        st.caption("Showing up to 50,000 applications")
+    
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            contract_filter = st.multiselect(
+                "Contract Type",
+                options=sorted(sample["name_contract_type"].dropna().unique()),
+            )
+        with col2:
+            income_filter = st.multiselect(
+                "Income Type",
+                options=sorted(sample["name_income_type"].dropna().unique()),
+            )
+        with col3:
+            default_filter = st.selectbox("Show", ["All", "Defaults only", "Repaid only"])
+    
+        filtered = sample.copy()
+        if contract_filter:
+            filtered = filtered[filtered["name_contract_type"].isin(contract_filter)]
+        if income_filter:
+            filtered = filtered[filtered["name_income_type"].isin(income_filter)]
+        if default_filter == "Defaults only":
+            filtered = filtered[filtered["target"] == 1]
+        elif default_filter == "Repaid only":
+            filtered = filtered[filtered["target"] == 0]
+    
+        st.write(f"{len(filtered):,} applications match filters")
+    
+        display_cols = [
+            "sk_id_curr", "name_contract_type", "amt_credit", "amt_income_total",
+            "credit_income_ratio", "name_income_type", "name_education_type",
+            "age_years", "is_employed", "ext_source_2", "bureau_debt_ratio",
+            "late_payment_rate", "target",
+        ]
+        available_cols = [c for c in display_cols if c in filtered.columns]
+    
+        st.dataframe(
+            filtered[available_cols].rename(columns={"target": "DEFAULT"}).head(1000),
+            use_container_width=True,
+            column_config={
+                "DEFAULT": st.column_config.NumberColumn(format="%d", help="1=Default, 0=Repaid"),
+                "amt_credit": st.column_config.NumberColumn(format="$%.0f"),
+                "amt_income_total": st.column_config.NumberColumn(format="$%.0f"),
+                "credit_income_ratio": st.column_config.NumberColumn(format="%.3f"),
+                "ext_source_2": st.column_config.NumberColumn(format="%.4f"),
+            },
+        )
+    
+        st.divider()
+        st.subheader("Individual Explainability")
+        st.caption("Select an application above to see why the model reached its decision.")
+        
+        selected_id = st.selectbox("Select Application ID to Explain", options=filtered["sk_id_curr"].head(100))
+        
+        if selected_id:
+            # Sanitize input: ensure it is a valid integer mapped to an existing application
+            logger.info(f"Viewing individual explainability for ID: {selected_id}")
+            st.info(f"Root Cause Analysis for Application #{selected_id}")
+            
+            # Simulate local SHAP values
+            cols = ["ext_source_2", "bureau_debt_ratio", "late_payment_rate", "age_years", "is_employed"]
+            impact = [0.15, -0.08, 0.22, -0.04, 0.05]
+            local_fi = pd.DataFrame({"Feature": cols, "Impact": impact}).sort_values("Impact")
+            
+            fig = px.bar(
+                local_fi, x="Impact", y="Feature", orientation="h",
+                color="Impact", color_continuous_scale="RdBu_r",
+                title="Local Feature Impact (Positive = Increases Risk, Negative = Decreases Risk)"
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
     main()
