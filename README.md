@@ -112,7 +112,12 @@ git clone https://github.com/Kshitijbhatt1998/home-credit-scoring-pipeline.git
 cd home-credit-scoring-pipeline
 pip install -r requirements.txt
 
-# 2. Download data from Kaggle
+# 2. Configure Firebase Authentication
+# The dashboard requires Firebase Identity Toolkit for access.
+# Create a .env file and input your Web API Key from Firebase Console:
+echo "FIREBASE_API_KEY=your_firebase_api_key_here" > .env
+
+# 3. Download data from Kaggle
 # https://www.kaggle.com/c/home-credit-default-risk/data
 # Place all 7 CSV files in data/raw/
 

@@ -12,6 +12,13 @@ import pickle
 import time
 from pathlib import Path
 import logging
+import requests
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")
 
 import duckdb
 import numpy as np
@@ -245,7 +252,66 @@ def check_rate_limit(max_requests=20, window_seconds=60):
     return True
 
 
+def authenticate_user(email, password, is_signup=False):
+    """Authenticate via Firebase Identity Toolkit REST API."""
+    if not FIREBASE_API_KEY:
+        st.error("⚠️ `FIREBASE_API_KEY` is missing from environment variables.")
+        return False
+        
+    endpoint = "signUp" if is_signup else "signInWithPassword"
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:{endpoint}?key={FIREBASE_API_KEY}"
+    
+    payload = {
+        "email": email,
+        "password": password,
+        "returnSecureToken": True
+    }
+    
+    try:
+        r = requests.post(url, json=payload)
+        data = r.json()
+        if "error" in data:
+            st.error(f"Authentication Failed: {data['error'].get('message', 'Unknown Error')}")
+            return False
+        
+        st.session_state["auth_token"] = data["idToken"]
+        st.session_state["user_email"] = data["email"]
+        return True
+    except Exception as e:
+        logger.error(f"Auth Service Connection Error: {e}")
+        st.error("Could not connect to authentication service.")
+        return False
+
+def check_auth():
+    """Renders the login/signup UI and returns True if authenticated."""
+    if "auth_token" not in st.session_state:
+        st.title("💳 Credit Pipeline - Secure Access")
+        st.info("This is a restricted dashboard. Please authenticate to continue.")
+        
+        auth_col, _ = st.columns([1, 1])
+        with auth_col:
+            auth_mode = st.radio("Authentication Mode", ["Login", "Sign Up"], horizontal=True)
+            
+            with st.form("auth_form"):
+                email = st.text_input("Email", placeholder="user@example.com")
+                password = st.text_input("Password", type="password")
+                submit = st.form_submit_button(auth_mode)
+                
+                if submit:
+                    if not email or not password:
+                        st.warning("Please provide both email and password.")
+                    else:
+                        if authenticate_user(email, password, is_signup=(auth_mode == "Sign Up")):
+                            st.rerun()
+        return False
+    return True
+
+
 def main():
+    # --- Authentication Gate ---
+    if not check_auth():
+        st.stop()
+        
     # --- Rate Limiting Enforcement ---
     if not check_rate_limit(max_requests=20, window_seconds=60):
         st.error("⏳ **Rate Limit Exceeded:** You are making requests too quickly. Please wait a minute and try again.")
@@ -254,7 +320,12 @@ def main():
         
     with st.sidebar:
         st.title("💳 Credit Pipeline")
-        st.caption("Home Credit Dataset • LightGBM Model")
+        st.caption(f"Logged in as: {st.session_state.get('user_email', 'User')}")
+        if st.button("Logout"):
+            del st.session_state["auth_token"]
+            del st.session_state["user_email"]
+            st.rerun()
+            
         st.divider()
         st.markdown("**Navigate:**")
         tab = st.radio(
