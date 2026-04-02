@@ -1,0 +1,9 @@
+[server]
+enableCORS = true
+corsAllowOrigins = [
+    "http://localhost:8501",
+    "http://localhost:8502",
+    "https://huggingface.co",
+    "https://hf.space"
+]
+enableXsrfProtection = true

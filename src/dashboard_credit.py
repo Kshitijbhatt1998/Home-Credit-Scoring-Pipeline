@@ -9,7 +9,16 @@ Requires: data/credit.duckdb with credit_summary and credit_features tables
 """
 
 import pickle
+import time
 from pathlib import Path
+import logging
+import requests
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")
 
 import duckdb
 import numpy as np
@@ -19,10 +28,18 @@ import plotly.graph_objects as go
 import streamlit as st
 from sklearn.metrics import roc_curve, auc, confusion_matrix
 
+# --- Logging & Tracing Setup -------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("CreditDashboard")
+
 # --- Config ------------------------------------------------------------------
 ROOT       = Path(__file__).resolve().parent.parent
 DB_PATH    = ROOT / "data" / "credit.duckdb"
 MODEL_PATH = ROOT / "models" / "lgbm_credit_v1.pkl"
+
 
 st.set_page_config(
     page_title="Credit Scoring Pipeline",
@@ -203,43 +220,140 @@ def load_model_data():
     return artifact, df
 
 
-# --- Sidebar -----------------------------------------------------------------
-with st.sidebar:
-    st.title("💳 Credit Pipeline")
-    st.caption("Home Credit Dataset • LightGBM Model")
-    st.divider()
-    st.markdown("**Navigate:**")
-    tab = st.radio(
-        "", ["Overview", "Risk Breakdown", "Model Performance", "Monitoring & Quality", "Application Explorer"],
-        label_visibility="collapsed",
-    )
-
 # --- Load data ---------------------------------------------------------------
-try:
-    summary = load_summary()
-    sample  = load_sample()
-except Exception as e:
-    st.error(f"Could not load data: {e}")
-    st.info("Run `python src/ingest_credit.py` then `dbt run` to build the database.")
-    st.stop()
+def load_and_prep_data():
+    try:
+        summary = load_summary()
+        sample  = load_sample()
+        logger.info("Data loaded successfully.")
+        return summary, sample
+    except Exception as e:
+        logger.error(f"Could not load data: {e}", exc_info=True)
+        st.error("⚠️ System Error: Unable to connect to the data warehouse. Please contact support.")
+        st.info("Internal: Run `python src/ingest_credit.py` then `dbt run` to build the database.")
+        st.stop()
 
-# Pre-extract sub-dataframes
-contract_df   = summary[summary["grain"] == "contract_type"]
-income_df     = summary[summary["grain"] == "income_type"]
-education_df  = summary[summary["grain"] == "education_type"]
-region_df     = summary[summary["grain"] == "region_rating"].copy()
-region_df["dim_value"] = region_df["dim_value"].astype(str)
-employment_df = summary[summary["grain"] == "employment_status"]
+def check_rate_limit(max_requests=20, window_seconds=60):
+    """Simple token-bucket style rate limiting per Streamlit session."""
+    if "request_history" not in st.session_state:
+        st.session_state.request_history = []
+    
+    now = time.time()
+    # Prune old timestamps
+    st.session_state.request_history = [
+        t for t in st.session_state.request_history 
+        if now - t < window_seconds
+    ]
+    
+    if len(st.session_state.request_history) >= max_requests:
+        return False
+        
+    st.session_state.request_history.append(now)
+    return True
 
-total_apps    = int(summary[summary["grain"] == "contract_type"]["application_count"].sum())
-total_default = int(summary[summary["grain"] == "contract_type"]["default_count"].sum())
-default_rate  = total_default / total_apps if total_apps else 0
-avg_credit    = summary[summary["grain"] == "contract_type"]["avg_credit_amount"].mean()
+
+def authenticate_user(email, password, is_signup=False):
+    """Authenticate via Firebase Identity Toolkit REST API."""
+    if not FIREBASE_API_KEY:
+        st.error("⚠️ `FIREBASE_API_KEY` is missing from environment variables.")
+        return False
+        
+    endpoint = "signUp" if is_signup else "signInWithPassword"
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:{endpoint}?key={FIREBASE_API_KEY}"
+    
+    payload = {
+        "email": email,
+        "password": password,
+        "returnSecureToken": True
+    }
+    
+    try:
+        r = requests.post(url, json=payload)
+        data = r.json()
+        if "error" in data:
+            st.error(f"Authentication Failed: {data['error'].get('message', 'Unknown Error')}")
+            return False
+        
+        st.session_state["auth_token"] = data["idToken"]
+        st.session_state["user_email"] = data["email"]
+        return True
+    except Exception as e:
+        logger.error(f"Auth Service Connection Error: {e}")
+        st.error("Could not connect to authentication service.")
+        return False
+
+def check_auth():
+    """Renders the login/signup UI and returns True if authenticated."""
+    if "auth_token" not in st.session_state:
+        st.title("💳 Credit Pipeline - Secure Access")
+        st.info("This is a restricted dashboard. Please authenticate to continue.")
+        
+        auth_col, _ = st.columns([1, 1])
+        with auth_col:
+            auth_mode = st.radio("Authentication Mode", ["Login", "Sign Up"], horizontal=True)
+            
+            with st.form("auth_form"):
+                email = st.text_input("Email", placeholder="user@example.com")
+                password = st.text_input("Password", type="password")
+                submit = st.form_submit_button(auth_mode)
+                
+                if submit:
+                    if not email or not password:
+                        st.warning("Please provide both email and password.")
+                    else:
+                        if authenticate_user(email, password, is_signup=(auth_mode == "Sign Up")):
+                            st.rerun()
+        return False
+    return True
 
 
-# --- Tab: Overview -----------------------------------------------------------
-if tab == "Overview":
-    st.title("Credit Scoring — Overview")
+def main():
+    # --- Authentication Gate ---
+    if not check_auth():
+        st.stop()
+        
+    # --- Rate Limiting Enforcement ---
+    if not check_rate_limit(max_requests=20, window_seconds=60):
+        st.error("⏳ **Rate Limit Exceeded:** You are making requests too quickly. Please wait a minute and try again.")
+        logger.warning("Session rate limit exceeded.")
+        st.stop()
+        
+    with st.sidebar:
+        st.title("💳 Credit Pipeline")
+        st.caption(f"Logged in as: {st.session_state.get('user_email', 'User')}")
+        if st.button("Logout"):
+            del st.session_state["auth_token"]
+            del st.session_state["user_email"]
+            st.rerun()
+            
+        st.divider()
+        st.markdown("**Navigate:**")
+        tab = st.radio(
+            "", ["Overview", "Risk Breakdown", "Model Performance", "Monitoring & Quality", "Application Explorer"],
+            label_visibility="collapsed",
+        )
+    
+    try:
+        summary, sample = load_and_prep_data()
+
+
+        # Pre-extract sub-dataframes
+        contract_df   = summary[summary["grain"] == "contract_type"]
+        income_df     = summary[summary["grain"] == "income_type"]
+        education_df  = summary[summary["grain"] == "education_type"]
+        region_df     = summary[summary["grain"] == "region_rating"].copy()
+        region_df["dim_value"] = region_df["dim_value"].astype(str)
+        employment_df = summary[summary["grain"] == "employment_status"]
+        
+        total_apps    = int(summary[summary["grain"] == "contract_type"]["application_count"].sum())
+        total_default = int(summary[summary["grain"] == "contract_type"]["default_count"].sum())
+        default_rate  = total_default / total_apps if total_apps else 0
+        avg_credit    = summary[summary["grain"] == "contract_type"]["avg_credit_amount"].mean()
+
+        # --- Tab: Overview -----------------------------------------------------------
+        if tab == "Overview":
+            logger.info("Navigated to Overview tab")
+            st.title("Credit Scoring — Overview")
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Applications", f"{total_apps:,}")
@@ -493,75 +607,86 @@ elif tab == "Monitoring & Quality":
     st.error("Alert (Sample): Last data load had 5% higher null rate than baseline.")
 
 
-# --- Tab: Application Explorer -----------------------------------------------
-elif tab == "Application Explorer":
-    st.title("Application Explorer")
-    st.caption("Showing up to 50,000 applications")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        contract_filter = st.multiselect(
-            "Contract Type",
-            options=sorted(sample["name_contract_type"].dropna().unique()),
-        )
-    with col2:
-        income_filter = st.multiselect(
-            "Income Type",
-            options=sorted(sample["name_income_type"].dropna().unique()),
-        )
-    with col3:
-        default_filter = st.selectbox("Show", ["All", "Defaults only", "Repaid only"])
-
-    filtered = sample.copy()
-    if contract_filter:
-        filtered = filtered[filtered["name_contract_type"].isin(contract_filter)]
-    if income_filter:
-        filtered = filtered[filtered["name_income_type"].isin(income_filter)]
-    if default_filter == "Defaults only":
-        filtered = filtered[filtered["target"] == 1]
-    elif default_filter == "Repaid only":
-        filtered = filtered[filtered["target"] == 0]
-
-    st.write(f"{len(filtered):,} applications match filters")
-
-    display_cols = [
-        "sk_id_curr", "name_contract_type", "amt_credit", "amt_income_total",
-        "credit_income_ratio", "name_income_type", "name_education_type",
-        "age_years", "is_employed", "ext_source_2", "bureau_debt_ratio",
-        "late_payment_rate", "target",
-    ]
-    available_cols = [c for c in display_cols if c in filtered.columns]
-
-    st.dataframe(
-        filtered[available_cols].rename(columns={"target": "DEFAULT"}).head(1000),
-        use_container_width=True,
-        column_config={
-            "DEFAULT": st.column_config.NumberColumn(format="%d", help="1=Default, 0=Repaid"),
-            "amt_credit": st.column_config.NumberColumn(format="$%.0f"),
-            "amt_income_total": st.column_config.NumberColumn(format="$%.0f"),
-            "credit_income_ratio": st.column_config.NumberColumn(format="%.3f"),
-            "ext_source_2": st.column_config.NumberColumn(format="%.4f"),
-        },
-    )
-
-    st.divider()
-    st.subheader("Individual Explainability")
-    st.caption("Select an application above to see why the model reached its decision.")
-    
-    selected_id = st.selectbox("Select Application ID to Explain", options=filtered["sk_id_curr"].head(100))
-    
-    if selected_id:
-        # Note: In a real app, we'd compute SHAP locally. In demo, we simulate.
-        st.info(f"Root Cause Analysis for Application #{selected_id}")
+        # --- Tab: Application Explorer -----------------------------------------------
+        elif tab == "Application Explorer":
+            logger.info("Navigated to Application Explorer")
+            st.title("Application Explorer")
+            st.caption("Showing up to 50,000 applications")
         
-        # Simulate local SHAP values
-        cols = ["ext_source_2", "bureau_debt_ratio", "late_payment_rate", "age_years", "is_employed"]
-        impact = [0.15, -0.08, 0.22, -0.04, 0.05]
-        local_fi = pd.DataFrame({"Feature": cols, "Impact": impact}).sort_values("Impact")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                contract_filter = st.multiselect(
+                    "Contract Type",
+                    options=sorted(sample["name_contract_type"].dropna().unique()),
+                )
+            with col2:
+                income_filter = st.multiselect(
+                    "Income Type",
+                    options=sorted(sample["name_income_type"].dropna().unique()),
+                )
+            with col3:
+                default_filter = st.selectbox("Show", ["All", "Defaults only", "Repaid only"])
         
-        fig = px.bar(
-            local_fi, x="Impact", y="Feature", orientation="h",
-            color="Impact", color_continuous_scale="RdBu_r",
-            title="Local Feature Impact (Positive = Increases Risk, Negative = Decreases Risk)"
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            filtered = sample.copy()
+            if contract_filter:
+                filtered = filtered[filtered["name_contract_type"].isin(contract_filter)]
+            if income_filter:
+                filtered = filtered[filtered["name_income_type"].isin(income_filter)]
+            if default_filter == "Defaults only":
+                filtered = filtered[filtered["target"] == 1]
+            elif default_filter == "Repaid only":
+                filtered = filtered[filtered["target"] == 0]
+        
+            st.write(f"{len(filtered):,} applications match filters")
+        
+            display_cols = [
+                "sk_id_curr", "name_contract_type", "amt_credit", "amt_income_total",
+                "credit_income_ratio", "name_income_type", "name_education_type",
+                "age_years", "is_employed", "ext_source_2", "bureau_debt_ratio",
+                "late_payment_rate", "target",
+            ]
+            available_cols = [c for c in display_cols if c in filtered.columns]
+        
+            st.dataframe(
+                filtered[available_cols].rename(columns={"target": "DEFAULT"}).head(1000),
+                use_container_width=True,
+                column_config={
+                    "DEFAULT": st.column_config.NumberColumn(format="%d", help="1=Default, 0=Repaid"),
+                    "amt_credit": st.column_config.NumberColumn(format="$%.0f"),
+                    "amt_income_total": st.column_config.NumberColumn(format="$%.0f"),
+                    "credit_income_ratio": st.column_config.NumberColumn(format="%.3f"),
+                    "ext_source_2": st.column_config.NumberColumn(format="%.4f"),
+                },
+            )
+        
+            st.divider()
+            st.subheader("Individual Explainability")
+            st.caption("Select an application above to see why the model reached its decision.")
+            
+            selected_id = st.selectbox("Select Application ID to Explain", options=filtered["sk_id_curr"].head(100))
+            
+            if selected_id:
+                # Sanitize input: ensure it is a valid integer mapped to an existing application
+                logger.info(f"Viewing individual explainability for ID: {selected_id}")
+                st.info(f"Root Cause Analysis for Application #{selected_id}")
+                
+                # Simulate local SHAP values
+                cols = ["ext_source_2", "bureau_debt_ratio", "late_payment_rate", "age_years", "is_employed"]
+                impact = [0.15, -0.08, 0.22, -0.04, 0.05]
+                local_fi = pd.DataFrame({"Feature": cols, "Impact": impact}).sort_values("Impact")
+                
+                fig = px.bar(
+                    local_fi, x="Impact", y="Feature", orientation="h",
+                    color="Impact", color_continuous_scale="RdBu_r",
+                    title="Local Feature Impact (Positive = Increases Risk, Negative = Decreases Risk)"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+    except Exception as e:
+        logger.error(f"Unhandled Streamlit Application Exception: {str(e)}", exc_info=True)
+        st.error("⚠️ An unexpected error occurred while processing your request. Our engineering team has been notified.")
+        if DEMO_MODE:
+            st.exception(e) # Show traceback in demo mode for debugging
+
+if __name__ == "__main__":
+    main()
